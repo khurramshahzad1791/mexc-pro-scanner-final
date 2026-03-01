@@ -6,13 +6,16 @@ import plotly.graph_objects as go
 from datetime import datetime
 import time
 
+# Force refresh hint
+st.markdown('<meta http-equiv="refresh" content="30">', unsafe_allow_html=True)
+
 st.set_page_config(page_title="MEXC PRO Scanner", layout="wide", page_icon="🚀")
-st.title("🚀 MEXC PRO Scanner - Best 100x Signals")
-st.success("✅ NEW ADVANCED VERSION LOADED - A1 toggle is working!")
+st.title("🚀 MEXC PRO Scanner - Best 100x Signals (DEBUG V3 - A1 Toggle Visible)")
+st.success("✅ If you see this green box + sidebar checkbox below, the new code loaded! Uncheck A1 for more signals.")
 st.warning("⚠️ 100x = EXTREME RISK. Max 0.5% risk per trade. Not financial advice.")
 
-# === SIDEBAR SETTINGS ===
-st.sidebar.header("Settings")
+# SIDEBAR - make sure it's always shown
+st.sidebar.header("Settings - Debug Mode")
 symbols = [
     "BTC/USDT:USDT", "ETH/USDT:USDT", "SOL/USDT:USDT", "XRP/USDT:USDT",
     "DOGE/USDT:USDT", "PEPE/USDT:USDT", "SHIB/USDT:USDT", "SUI/USDT:USDT",
@@ -24,10 +27,12 @@ tf_options = {"5m": "5m", "15m": "15m", "30m": "30m", "1h": "1h", "4h": "4h", "D
 tf_display = st.sidebar.selectbox("Timeframe", list(tf_options.keys()), index=1)
 tf = tf_options[tf_display]
 
-a1_mode = st.sidebar.checkbox("A1 Setups Only (Highest Probability)", value=False)
+a1_mode = st.sidebar.checkbox("A1 Setups Only (Highest Probability - fewer signals)", value=False)
 refresh_sec = st.sidebar.slider("Auto Refresh (seconds)", 20, 60, 30)
 
-# === INDICATOR LOGIC (unchanged) ===
+st.sidebar.info("Uncheck A1 + use 5m/15m for testing signals in low-vol markets.")
+
+# INDICATOR LOGIC (slight tweak for debug)
 def get_data(ex, sym, timeframe, limit=200):
     ohlcv = ex.fetch_ohlcv(sym, timeframe, limit=limit)
     df = pd.DataFrame(ohlcv, columns=['ts', 'o', 'h', 'l', 'c', 'v'])
@@ -40,7 +45,7 @@ def calculate_indicators(df):
     df['ema21'] = df['c'].ewm(span=21, adjust=False).mean()
     df['ema200'] = df['c'].ewm(span=200, adjust=False).mean()
     df['vol_avg'] = df['v'].rolling(20).mean()
-    multiplier = 3.5 if a1_mode else 2.5
+    multiplier = 3.5 if a1_mode else 2.0  # Lowered for more normal signals in debug
     df['vol_surge'] = (df['v'] > df['vol_avg'] * multiplier) & (df['v'] > df['v'].shift())
     delta = df['c'].diff()
     gain = delta.clip(lower=0).rolling(14).mean()
@@ -87,7 +92,6 @@ def get_signal(df):
         return f"A1 SHORT" if a1_mode else "SHORT", "#FF0000", last['c']
     return "WAIT", "#AAAAAA", last['c']
 
-# === RUN SCANNER ===
 exchange = ccxt.mexc({'enableRateLimit': True})
 results = {}
 hot = []
@@ -100,8 +104,8 @@ for i, sym in enumerate(symbols):
         results[sym] = {"price": price, "sig": sig, "col": col}
         if sig != "WAIT":
             hot.append((sym.replace("/USDT:USDT", ""), sig, col, price))
-    except:
-        pass
+    except Exception as e:
+        pass  # silent skip
     progress.progress(int((i + 1) / len(symbols) * 100))
 
 st.subheader("🔥 Hot Signals (Ready to Trade Now)")
@@ -112,7 +116,7 @@ if hot:
             st.markdown(f"<h3 style='color:{colr}; text-align:center;'>{s}<br>{sig}</h3>", unsafe_allow_html=True)
             st.metric("", f"${pr:,.4f}")
 else:
-    st.info("No hot signals right now — uncheck A1 and switch to 5m/15m")
+    st.info("No hot signals — uncheck A1 + use 5m/15m timeframe for testing")
 
 st.subheader("All Pairs Scanner")
 data = [{"Coin": k.replace("/USDT:USDT",""), "Price": f"${v['price']:,.4f}", "Signal": f"<span style='color:{v['col']}; font-weight:bold'>{v['sig']}</span>"} for k,v in results.items()]
@@ -137,6 +141,6 @@ if full_sym in results:
         tp2 = price * (1 + 0.02) if "LONG" in sig else price * (1 - 0.02)
         st.success(f"**ENTRY NOW** | **SL**: {sl:,.4f} | **TP1 (50%)**: {tp1:,.4f} | **TP2**: {tp2:,.4f}")
 
-st.caption(f"Last update: {datetime.now().strftime('%H:%M:%S')} • Auto-refresh every {refresh_sec}s • Uncheck A1 for more signals")
+st.caption(f"Last update: {datetime.now().strftime('%H:%M:%S')} • Auto-refresh every {refresh_sec}s • If no sidebar → reboot app in dashboard")
 time.sleep(refresh_sec)
 st.rerun()
